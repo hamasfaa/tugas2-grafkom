@@ -1,144 +1,151 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulasi Archimedes</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        #canvas {
-            display: block;
-        }
-        #loading {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-            transition: opacity 0.5s;
-        }
-        #loading.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-    </style>
+    <title>Simulasi Gaya Archimedes</title>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-gray-100">
-    <canvas id="canvas"></canvas>
 
-    <div id="loading">
-        <div class="text-center text-white">
-            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-white mx-auto mb-4"></div>
-            <p class="text-xl font-semibold">Memuat Model 3D...</p>
+<body class="overflow-hidden bg-gradient-to-br from-blue-900 via-blue-700 to-cyan-500">
+    <div id="container" class="w-screen h-screen relative">
+        <canvas id="canvas" class="w-full h-full block"></canvas>
+
+        <div
+            class="absolute top-6 left-6 bg-white/10 backdrop-blur-xl p-8 rounded-3xl shadow-2xl max-w-md max-h-[calc(100vh-3rem)] overflow-y-auto border border-white/20">
+            <div class="text-center mb-6">
+                <h1 class="text-3xl font-bold text-white mb-2 tracking-tight">
+                    Simulasi Archimedes
+                </h1>
+                <p class="text-blue-100 text-sm">Prinsip Gaya Apung & Gravitasi</p>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-white font-semibold mb-3 text-sm uppercase tracking-wide">
+                    Pilih Objek
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="shipBtn"
+                        class="px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 bg-white/20 text-white hover:bg-white/30 hover:scale-105 active:scale-95 border-2 border-transparent">
+                        Kapal
+                    </button>
+                    <button id="duckBtn"
+                        class="px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 bg-white/20 text-white hover:bg-white/30 hover:scale-105 active:scale-95 border-2 border-transparent">
+                        Bebek
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label class="flex justify-between items-center text-white font-semibold mb-3 text-sm">
+                    <span class="uppercase tracking-wide">Ketinggian Air</span>
+                    <span id="waterLevelValue" class="bg-blue-500 px-3 py-1 rounded-full text-xs font-bold">0.50</span>
+                </label>
+                <input type="range" id="waterLevel" min="0" max="0.5" step="0.01" value="0.5"
+                    class="w-full h-2 bg-white/20 rounded-full outline-none appearance-none cursor-pointer
+                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 
+                    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-400 
+                    [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg
+                    [&::-webkit-slider-thumb]:hover:bg-blue-300 [&::-webkit-slider-thumb]:transition-all
+                    [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full 
+                    [&::-moz-range-thumb]:bg-blue-400 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer">
+            </div>
+
+            <div class="mb-6">
+                <label class="flex justify-between items-center text-white font-semibold mb-3 text-sm">
+                    <span class="uppercase tracking-wide">Densitas Objek</span>
+                    <span id="densityValue" class="bg-purple-500 px-3 py-1 rounded-full text-xs font-bold">0.70</span>
+                </label>
+                <input type="range" id="objectDensity" min="0.1" max="2" step="0.01" value="0.7"
+                    class="w-full h-2 bg-white/20 rounded-full outline-none appearance-none cursor-pointer
+                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 
+                    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400 
+                    [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg
+                    [&::-webkit-slider-thumb]:hover:bg-purple-300 [&::-webkit-slider-thumb]:transition-all
+                    [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full 
+                    [&::-moz-range-thumb]:bg-purple-400 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer">
+            </div>
+
+            <div
+                class="bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-sm p-5 rounded-2xl border border-white/10 mb-6">
+                <div class="flex items-center gap-2 mb-4">
+                    <h3 class="text-white font-bold text-sm uppercase tracking-wider">Data Fisika Real-time</h3>
+                </div>
+
+                <div
+                    class="mb-4 p-4 bg-gradient-to-r from-blue-600/20 to-blue-500/20 rounded-xl border-l-4 border-blue-400">
+                    <div class="flex justify-between items-start mb-1">
+                        <div>
+                            <p class="text-blue-300 text-xs font-semibold uppercase tracking-wide">Gaya Apung</p>
+                            <p class="text-blue-200 text-[10px] mt-1">Archimedes Principle (F<sub>b</sub> = ρVg)</p>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="buoyancyForce" class="text-3xl font-black text-white">0.00</span>
+                        <span class="text-blue-300 text-sm font-semibold">N</span>
+                    </div>
+                </div>
+
+                <div
+                    class="mb-4 p-4 bg-gradient-to-r from-red-600/20 to-red-500/20 rounded-xl border-l-4 border-red-400">
+                    <div class="flex justify-between items-start mb-1">
+                        <div>
+                            <p class="text-red-300 text-xs font-semibold uppercase tracking-wide">Gaya Gravitasi</p>
+                            <p class="text-red-200 text-[10px] mt-1">Weight Force (F<sub>g</sub> = mg)</p>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="gravityForce" class="text-3xl font-black text-white">0.00</span>
+                        <span class="text-red-300 text-sm font-semibold">N</span>
+                    </div>
+                </div>
+
+                <div
+                    class="mb-4 p-4 bg-gradient-to-r from-yellow-600/20 to-yellow-500/20 rounded-xl border-l-4 border-yellow-400">
+                    <div class="flex justify-between items-start mb-1">
+                        <div>
+                            <p class="text-yellow-300 text-xs font-semibold uppercase tracking-wide">Posisi Vertikal</p>
+                            <p class="text-yellow-200 text-[10px] mt-1">Y-Axis Position</p>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="positionY" class="text-3xl font-black text-white">0.000</span>
+                        <span class="text-yellow-300 text-sm font-semibold">m</span>
+                    </div>
+                </div>
+
+                <div
+                    class="p-4 bg-gradient-to-r from-green-600/30 to-emerald-500/30 rounded-xl border border-green-400/50">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-green-300 text-xs font-semibold uppercase tracking-wide mb-1">Status Objek
+                            </p>
+                            <span id="status" class="text-2xl font-black text-white">Mengapung</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="resetBtn"
+                class="w-full py-4 rounded-xl font-bold text-white bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 uppercase tracking-wide">
+                Reset Simulasi
+            </button>
         </div>
     </div>
 
-    <div class="fixed top-6 left-6 bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-6 max-w-sm border-2 border-white/50">
-        <h1 class="text-2xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Simulasi Archimedes
-        </h1>
-        <p class="text-sm text-gray-600 mb-4">Prinsip Gaya Apung & Gravitasi</p>
-
-        <div class="mb-4">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Pilih Objek</label>
-            <div class="flex gap-2">
-                <button id="shipBtn" class="flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-300 border-2 bg-white/20 hover:scale-105">
-                    Kapal
-                </button>
-                <button id="duckBtn" class="flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-300 border-2 bg-white/20 hover:scale-105">
-                    Bebek
-                </button>
-            </div>
+    <div id="loading"
+        class="fixed inset-0 bg-gradient-to-br from-blue-900 via-blue-800 to-cyan-900 flex flex-col justify-center items-center z-50">
+        <div class="relative">
+            <div class="w-20 h-20 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+            <div class="absolute inset-0 w-20 h-20 border-4 border-transparent border-b-blue-400 rounded-full animate-spin"
+                style="animation-duration: 1.5s;"></div>
         </div>
-
-        <div class="mb-4">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                Ketinggian Air <span id="waterLevelValue" class="text-blue-600">0.50</span>
-            </label>
-            <input type="range" id="waterLevel" min="0" max="1" step="0.01" value="0.5" 
-                   class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer slider">
-        </div>
-
-        <div class="mb-4">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                Densitas Objek <span id="densityValue" class="text-purple-600">0.50</span>
-            </label>
-            <input type="range" id="objectDensity" min="0.1" max="2" step="0.1" value="0.5" 
-                   class="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer slider">
-        </div>
-
-        <div class="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-4 mb-4 border border-blue-100">
-            <h3 class="font-bold text-sm mb-3 text-gray-800">Informasi Fisika</h3>
-            
-            <div class="space-y-2 text-sm">
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Gaya Apung</span>
-                    <span class="font-semibold text-blue-600">
-                        <span id="buoyancyForce">0.00</span> N
-                    </span>
-                </div>
-                
-                <div class="text-xs text-gray-500 italic mb-2">
-                    Archimedes Principle (F<sub>b</sub> = ρVg)
-                </div>
-
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Gaya Gravitasi</span>
-                    <span class="font-semibold text-purple-600">
-                        <span id="gravityForce">0.00</span> N
-                    </span>
-                </div>
-
-                <div class="text-xs text-gray-500 italic mb-2">
-                    Weight Force (F<sub>g</sub> = mg)
-                </div>
-
-                <div class="flex justify-between items-center pt-2 border-t border-gray-200">
-                    <span class="text-gray-600">Posisi Y</span>
-                    <span class="font-semibold text-gray-800">
-                        <span id="positionY">0.000</span> m
-                    </span>
-                </div>
-
-                <div class="text-xs text-gray-500 italic">
-                    Y-Axis Position
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-3 mb-4 border border-green-200">
-            <div class="flex justify-between items-center">
-                <span class="text-sm font-semibold text-gray-700">Status Objek</span>
-                <span id="status" class="px-3 py-1 bg-green-500 text-white text-sm font-bold rounded-full">
-                    Mengapung
-                </span>
-            </div>
-        </div>
-
-        <button id="resetBtn" class="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold py-3 px-4 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg">
-            Reset
-        </button>
+        <p class="mt-8 text-white text-lg font-semibold animate-pulse">Memuat Model 3D...</p>
+        <p class="text-blue-200 text-sm mt-2">Mohon tunggu sebentar</p>
     </div>
 
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-            "three/examples/jsm/loaders/GLTFLoader.js": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js",
-            "three/examples/jsm/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js"
-        }
-    }
-    </script>
-    <script type="module" src="./main.js"></script>
+    <script type="module" src="main.js"></script>
 </body>
+
 </html>
