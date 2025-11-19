@@ -452,7 +452,6 @@ class ArchimedesSimulation {
         this.water = new THREE.Mesh(waterGeometry, waterMaterial);
         this.water.rotation.x = -Math.PI / 2;
         this.water.position.y = -2.25;
-        // console.log("dari create", this.water.position.y);
         this.water.receiveShadow = true;
 
         this.scene.add(this.water);
@@ -464,7 +463,6 @@ class ArchimedesSimulation {
     createBubble(position) {
         let bubble;
         
-        // Reuse bubble from pool or create new one
         if (this.bubblePool.length > 0) {
             bubble = this.bubblePool.pop();
             bubble.visible = true;
@@ -473,7 +471,7 @@ class ArchimedesSimulation {
             const bubbleMaterial = new THREE.MeshPhysicalMaterial({
                 color: 0xffffff,
                 transparent: true,
-                opacity: 0.5,
+                opacity: 0.6,
                 metalness: 0,
                 roughness: 0.1,
                 transmission: 0.95,
@@ -483,27 +481,10 @@ class ArchimedesSimulation {
             this.scene.add(bubble);
         }
         
-        // Get bounding box of current object for accurate sizing
-        if (this.currentObject) {
-            const box = new THREE.Box3().setFromObject(this.currentObject);
-            const size = box.getSize(new THREE.Vector3());
-            
-            // Random offset within the object's horizontal bounds
-            const offsetX = (Math.random() - 0.5) * size.x * 0.6;
-            const offsetZ = (Math.random() - 0.5) * size.z * 0.6;
-            
-            bubble.position.set(
-                position.x + offsetX,
-                position.y,
-                position.z + offsetZ
-            );
-        } else {
-            bubble.position.copy(position);
-        }
+        bubble.position.copy(position);
         
-        // Bubble properties
         bubble.userData = {
-            velocity: 0.015 + Math.random() * 0.025, // Rise speed
+            velocity: 0.015 + Math.random() * 0.025,
             wobbleSpeed: 0.5 + Math.random() * 1.5,
             wobbleAmount: 0.03 + Math.random() * 0.07,
             lifeTime: 0,
@@ -516,53 +497,51 @@ class ArchimedesSimulation {
     spawnBubblesFromObject() {
         if (!this.currentObject || !this.water) return;
         
-        const objectY = this.currentObject.position.y;
-        const waterY = this.water.position.y;
         const box = new THREE.Box3().setFromObject(this.currentObject);
+        const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
         
-        // Calculate submerged ratio
-        let submergedRatio = 0;
-        const bottomY = objectY - size.y / 2;
+        const waterY = this.water.position.y;
+        const objectBottomY = box.min.y;
         
-        if (bottomY < waterY) {
-            const submergedDepth = Math.min(size.y, waterY - bottomY);
+        let submergedRatio = 0;
+        if (objectBottomY < waterY) {
+            const submergedDepth = Math.min(size.y, waterY - objectBottomY);
             submergedRatio = Math.max(0, Math.min(1, submergedDepth / size.y));
         }
         
-        // Only spawn bubbles if:
-        // 1. Object is significantly submerged (more than 30%)
-        // 2. Object is moving (has velocity) OR is sinking
         const isMoving = Math.abs(this.objectVelocity) > 0.001;
-        const shouldSpawnBubbles = submergedRatio > 0.3 && isMoving;
+        const shouldSpawnBubbles = submergedRatio > 0.2 && isMoving;
         
         if (shouldSpawnBubbles && this.bubbles.length < this.maxBubbles) {
-            // Adjust spawn rate based on velocity (more movement = more bubbles)
             const velocityFactor = Math.min(Math.abs(this.objectVelocity) * 10, 1);
-            const spawnChance = this.bubbleSpawnRate * submergedRatio * velocityFactor;
+            const spawnChance = this.bubbleSpawnRate * submergedRatio * velocityFactor * 0.05;
             
             if (Math.random() < spawnChance) {
-                // Get object's world position
-                const objectWorldPos = new THREE.Vector3();
-                this.currentObject.getWorldPosition(objectWorldPos);
-                
-                // Calculate the submerged bottom position
-                const submergedBottom = Math.max(bottomY, objectY - submergedRatio * size.y);
-                
-                // Spawn bubble from a random point in the submerged area
-                const randomHeight = submergedBottom + Math.random() * (waterY - submergedBottom) * 0.3;
-                
-                const bubblePosition = new THREE.Vector3(
-                    objectWorldPos.x,
-                    randomHeight,
-                    objectWorldPos.z
-                );
-                
-                this.createBubble(bubblePosition);
+                if (this.currentObjectType === 'duck') {
+                    const ringRadius = size.x * 0.3; 
+                    const angle = Math.random() * Math.PI * 2;
+                    
+                    const bubblePosition = new THREE.Vector3(
+                        center.x + Math.cos(angle) * ringRadius,
+                        objectBottomY + Math.random() * 0.2,
+                        center.z + Math.sin(angle) * ringRadius
+                    );
+                    
+                    this.createBubble(bubblePosition);
+                } 
+                else {
+                    const bubblePosition = new THREE.Vector3(
+                        box.min.x + Math.random() * size.x,
+                        objectBottomY + Math.random() * 0.2,
+                        box.min.z + Math.random() * size.z
+                    );
+                    
+                    this.createBubble(bubblePosition);
+                }
             }
         }
     }
-
     updateBubbles(time) {
         if (!this.water) return;
         
@@ -572,27 +551,21 @@ class ArchimedesSimulation {
             const bubble = this.bubbles[i];
             const userData = bubble.userData;
             
-            // Move bubble upward
             bubble.position.y += userData.velocity;
             
-            // Wobble effect (side to side motion)
             bubble.position.x += Math.sin(time * userData.wobbleSpeed) * userData.wobbleAmount * 0.1;
             bubble.position.z += Math.cos(time * userData.wobbleSpeed * 0.7) * userData.wobbleAmount * 0.1;
             
-            // Slight rotation
             bubble.rotation.x += 0.02;
             bubble.rotation.y += 0.03;
             
-            // Update lifetime
             userData.lifeTime += 0.016;
             
-            // Fade out near surface
             const distanceToSurface = waterSurfaceY - bubble.position.y;
             if (distanceToSurface < 0.3) {
                 bubble.material.opacity = Math.max(0, distanceToSurface / 0.3) * 0.4;
             }
             
-            // Remove bubble if it reaches surface or expires
             if (bubble.position.y >= waterSurfaceY || userData.lifeTime >= userData.maxLifeTime) {
                 bubble.visible = false;
                 this.bubblePool.push(bubble);
