@@ -43,6 +43,25 @@ class ArchimedesSimulation {
         this.maxBubbles = 50;
         this.bubbleSpawnRate = 0.9; 
 
+        // Day/Night mode
+        this.isNightMode = false;
+        this.dayColors = {
+            background: 0x87ceeb,
+            fog: 0x87ceeb,
+            ambientLight: 0xffffff,
+            directionalLight: 0xffffff,
+            hemisphereTop: 0x87ceeb,
+            hemisphereBottom: 0x6c8ba6
+        };
+        this.nightColors = {
+            background: 0x0a0e27,
+            fog: 0x0a0e27,
+            ambientLight: 0x4a5f8f,
+            directionalLight: 0x6b8cce,
+            hemisphereTop: 0x1a1f3a,
+            hemisphereBottom: 0x0a0e27
+        };
+
         this.init();
         this.createRoom();
         this.createDecorations();
@@ -68,18 +87,18 @@ class ArchimedesSimulation {
         this.scene.background = new THREE.Color(0x87ceeb);
         this.scene.fog = new THREE.Fog(0x87ceeb, 10, 50);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        this.scene.add(ambientLight);
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        this.scene.add(this.ambientLight);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(10, 10, 5);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        this.scene.add(directionalLight);
+        this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        this.directionalLight.position.set(10, 10, 5);
+        this.directionalLight.castShadow = true;
+        this.directionalLight.shadow.mapSize.width = 2048;
+        this.directionalLight.shadow.mapSize.height = 2048;
+        this.scene.add(this.directionalLight);
 
-        const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x6c8ba6, 0.5);
-        this.scene.add(hemisphereLight);
+        this.hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x6c8ba6, 0.5);
+        this.scene.add(this.hemisphereLight);
 
         window.addEventListener('resize', () => this.onWindowResize());
     }
@@ -460,6 +479,102 @@ class ArchimedesSimulation {
         this.waterOriginalPositions = waterGeometry.attributes.position.array.slice();
     }
 
+    toggleDayNight() {
+        this.isNightMode = !this.isNightMode;
+        
+        const colors = this.isNightMode ? this.nightColors : this.dayColors;
+        const duration = 1000; 
+        const steps = 60;
+        const interval = duration / steps;
+        
+        // Get starting colors
+        const startBg = this.scene.background.clone();
+        const startFog = this.scene.fog.color.clone();
+        const startAmbient = this.ambientLight.color.clone();
+        const startDirectional = this.directionalLight.color.clone();
+        const startHemiTop = new THREE.Color(this.hemisphereLight.color);
+        const startHemiBottom = new THREE.Color(this.hemisphereLight.groundColor);
+        
+        // Target colors
+        const targetBg = new THREE.Color(colors.background);
+        const targetFog = new THREE.Color(colors.fog);
+        const targetAmbient = new THREE.Color(colors.ambientLight);
+        const targetDirectional = new THREE.Color(colors.directionalLight);
+        const targetHemiTop = new THREE.Color(colors.hemisphereTop);
+        const targetHemiBottom = new THREE.Color(colors.hemisphereBottom);
+        
+        let step = 0;
+        const animate = () => {
+            step++;
+            const progress = step / steps;
+            
+            // Interpolate colors
+            this.scene.background.lerpColors(startBg, targetBg, progress);
+            this.scene.fog.color.lerpColors(startFog, targetFog, progress);
+            this.ambientLight.color.lerpColors(startAmbient, targetAmbient, progress);
+            this.directionalLight.color.lerpColors(startDirectional, targetDirectional, progress);
+            this.hemisphereLight.color.lerpColors(startHemiTop, targetHemiTop, progress);
+            this.hemisphereLight.groundColor.lerpColors(startHemiBottom, targetHemiBottom, progress);
+            
+            // Adjust light intensity
+            if (this.isNightMode) {
+                this.ambientLight.intensity = 0.6 - (progress * 0.3);
+                this.directionalLight.intensity = 0.8 - (progress * 0.5); 
+            } else {
+                this.ambientLight.intensity = 0.3 + (progress * 0.3); 
+                this.directionalLight.intensity = 0.3 + (progress * 0.5); 
+            }
+            
+            if (step < steps) {
+                setTimeout(animate, interval);
+            } else {
+                const modeIcon = document.getElementById('modeIcon');
+                const modeText = document.getElementById('modeText');
+                if (this.isNightMode) {
+                    modeIcon.textContent = '☀️';
+                    modeText.textContent = 'Mode Siang';
+                } else {
+                    modeIcon.textContent = '🌙';
+                    modeText.textContent = 'Mode Malam';
+                }
+            }
+
+            if (this.isNightMode) {
+                this.createStars();
+            } else if (this.stars) {
+                this.scene.remove(this.stars);
+            }
+        };
+        
+        animate();
+    }
+
+    createStars() {
+        if (this.stars) {
+            this.scene.remove(this.stars);
+        }
+        
+        const starsGeometry = new THREE.BufferGeometry();
+        const starsMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 0.1,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        const starsVertices = [];
+        for (let i = 0; i < 1000; i++) {
+            const x = (Math.random() - 0.5) * 100;
+            const y = Math.random() * 50 + 10;
+            const z = (Math.random() - 0.5) * 100;
+            starsVertices.push(x, y, z);
+        }
+        
+        starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+        this.stars = new THREE.Points(starsGeometry, starsMaterial);
+        this.scene.add(this.stars);
+    }
+
     createBubble(position) {
         let bubble;
         
@@ -745,6 +860,11 @@ class ArchimedesSimulation {
                 document.getElementById('bubbleIntensityValue').textContent = '0.10';
             }
 
+        });
+
+        const dayNightBtn = document.getElementById('dayNightBtn');
+        dayNightBtn.addEventListener('click', () => {
+            this.toggleDayNight();
         });
     }
 
