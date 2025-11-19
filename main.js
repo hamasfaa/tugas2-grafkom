@@ -66,6 +66,16 @@ class ArchimedesSimulation {
         this.lamps = [];
         this.lampLights = [];
 
+        this.cameraPresets = {
+            default: { position: { x: 5, y: 4, z: 8 }, target: { x: 0, y: 0, z: 0 } },
+            topView: { position: { x: 0, y: 15, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+            sideView: { position: { x: 12, y: 2, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+            closeUp: { position: { x: 2, y: 2, z: 3 }, target: { x: 0, y: 1, z: 0 } },
+            frontView: { position: { x: 0, y: 2, z: 10 }, target: { x: 0, y: 0, z: 0 } }
+        };
+        this.isAnimatingCamera = false;
+
+
         this.init();
         this.createRoom();
         this.createDecorations();
@@ -650,6 +660,47 @@ class ArchimedesSimulation {
         this.scene.add(this.stars);
     }
 
+    setCameraView(presetName) {
+        if (this.isAnimatingCamera) return;
+        
+        const preset = this.cameraPresets[presetName];
+        if (!preset) return;
+        
+        this.isAnimatingCamera = true;
+        
+        const startPosition = this.camera.position.clone();
+        const startTarget = this.controls.target.clone();
+        
+        const endPosition = new THREE.Vector3(preset.position.x, preset.position.y, preset.position.z);
+        const endTarget = new THREE.Vector3(preset.target.x, preset.target.y, preset.target.z);
+        
+        const duration = 1000; 
+        const startTime = Date.now();
+        
+        const animateCamera = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            const eased = progress < 0.5
+                ? 2 * progress * progress
+                : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+            
+            this.camera.position.lerpVectors(startPosition, endPosition, eased);
+            
+            this.controls.target.lerpVectors(startTarget, endTarget, eased);
+            
+            this.controls.update();
+            
+            if (progress < 1) {
+                requestAnimationFrame(animateCamera);
+            } else {
+                this.isAnimatingCamera = false;
+            }
+        };
+        animateCamera();
+    }
+
+
     createBubble(position) {
         let bubble;
         
@@ -941,6 +992,28 @@ class ArchimedesSimulation {
         dayNightBtn.addEventListener('click', () => {
             this.toggleDayNight();
         });
+
+        const defaultViewBtn = document.getElementById('defaultViewBtn');
+        const topViewBtn = document.getElementById('topViewBtn');
+        const sideViewBtn = document.getElementById('sideViewBtn');
+        const closeUpBtn = document.getElementById('closeUpBtn');
+        const frontViewBtn = document.getElementById('frontViewBtn');
+
+        if (defaultViewBtn) {
+            defaultViewBtn.addEventListener('click', () => this.setCameraView('default'));
+        }
+        if (topViewBtn) {
+            topViewBtn.addEventListener('click', () => this.setCameraView('topView'));
+        }
+        if (sideViewBtn) {
+            sideViewBtn.addEventListener('click', () => this.setCameraView('sideView'));
+        }
+        if (closeUpBtn) {
+            closeUpBtn.addEventListener('click', () => this.setCameraView('closeUp'));
+        }
+        if (frontViewBtn) {
+            frontViewBtn.addEventListener('click', () => this.setCameraView('frontView'));
+        }
     }
 
     animate() {
