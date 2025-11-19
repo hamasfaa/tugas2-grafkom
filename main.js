@@ -37,6 +37,12 @@ class ArchimedesSimulation {
         this.objectVelocity = 0;
         this.targetY = 0;
 
+        // Bubble system
+        this.bubbles = [];
+        this.bubblePool = [];
+        this.maxBubbles = 50;
+        this.bubbleSpawnRate = 0.9; 
+
         this.init();
         this.createRoom();
         this.createDecorations();
@@ -455,6 +461,146 @@ class ArchimedesSimulation {
         this.waterOriginalPositions = waterGeometry.attributes.position.array.slice();
     }
 
+    createBubble(position) {
+        let bubble;
+        
+        // Reuse bubble from pool or create new one
+        if (this.bubblePool.length > 0) {
+            bubble = this.bubblePool.pop();
+            bubble.visible = true;
+        } else {
+            const bubbleGeometry = new THREE.SphereGeometry(0.05 + Math.random() * 0.08, 8, 8);
+            const bubbleMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.5,
+                metalness: 0,
+                roughness: 0.1,
+                transmission: 0.95,
+                thickness: 0.5
+            });
+            bubble = new THREE.Mesh(bubbleGeometry, bubbleMaterial);
+            this.scene.add(bubble);
+        }
+        
+        // Get bounding box of current object for accurate sizing
+        if (this.currentObject) {
+            const box = new THREE.Box3().setFromObject(this.currentObject);
+            const size = box.getSize(new THREE.Vector3());
+            
+            // Random offset within the object's horizontal bounds
+            const offsetX = (Math.random() - 0.5) * size.x * 0.6;
+            const offsetZ = (Math.random() - 0.5) * size.z * 0.6;
+            
+            bubble.position.set(
+                position.x + offsetX,
+                position.y,
+                position.z + offsetZ
+            );
+        } else {
+            bubble.position.copy(position);
+        }
+        
+        // Bubble properties
+        bubble.userData = {
+            velocity: 0.015 + Math.random() * 0.025, // Rise speed
+            wobbleSpeed: 0.5 + Math.random() * 1.5,
+            wobbleAmount: 0.03 + Math.random() * 0.07,
+            lifeTime: 0,
+            maxLifeTime: 4 + Math.random() * 3
+        };
+        
+        this.bubbles.push(bubble);
+    }
+
+    spawnBubblesFromObject() {
+        if (!this.currentObject || !this.water) return;
+        
+        const objectY = this.currentObject.position.y;
+        const waterY = this.water.position.y;
+        const box = new THREE.Box3().setFromObject(this.currentObject);
+        const size = box.getSize(new THREE.Vector3());
+        
+        // Calculate submerged ratio
+        let submergedRatio = 0;
+        const bottomY = objectY - size.y / 2;
+        
+        if (bottomY < waterY) {
+            const submergedDepth = Math.min(size.y, waterY - bottomY);
+            submergedRatio = Math.max(0, Math.min(1, submergedDepth / size.y));
+        }
+        
+        // Only spawn bubbles if:
+        // 1. Object is significantly submerged (more than 30%)
+        // 2. Object is moving (has velocity) OR is sinking
+        const isMoving = Math.abs(this.objectVelocity) > 0.001;
+        const shouldSpawnBubbles = submergedRatio > 0.3 && isMoving;
+        
+        if (shouldSpawnBubbles && this.bubbles.length < this.maxBubbles) {
+            // Adjust spawn rate based on velocity (more movement = more bubbles)
+            const velocityFactor = Math.min(Math.abs(this.objectVelocity) * 10, 1);
+            const spawnChance = this.bubbleSpawnRate * submergedRatio * velocityFactor;
+            
+            if (Math.random() < spawnChance) {
+                // Get object's world position
+                const objectWorldPos = new THREE.Vector3();
+                this.currentObject.getWorldPosition(objectWorldPos);
+                
+                // Calculate the submerged bottom position
+                const submergedBottom = Math.max(bottomY, objectY - submergedRatio * size.y);
+                
+                // Spawn bubble from a random point in the submerged area
+                const randomHeight = submergedBottom + Math.random() * (waterY - submergedBottom) * 0.3;
+                
+                const bubblePosition = new THREE.Vector3(
+                    objectWorldPos.x,
+                    randomHeight,
+                    objectWorldPos.z
+                );
+                
+                this.createBubble(bubblePosition);
+            }
+        }
+    }
+
+    updateBubbles(time) {
+        if (!this.water) return;
+        
+        const waterSurfaceY = this.water.position.y;
+        
+        for (let i = this.bubbles.length - 1; i >= 0; i--) {
+            const bubble = this.bubbles[i];
+            const userData = bubble.userData;
+            
+            // Move bubble upward
+            bubble.position.y += userData.velocity;
+            
+            // Wobble effect (side to side motion)
+            bubble.position.x += Math.sin(time * userData.wobbleSpeed) * userData.wobbleAmount * 0.1;
+            bubble.position.z += Math.cos(time * userData.wobbleSpeed * 0.7) * userData.wobbleAmount * 0.1;
+            
+            // Slight rotation
+            bubble.rotation.x += 0.02;
+            bubble.rotation.y += 0.03;
+            
+            // Update lifetime
+            userData.lifeTime += 0.016;
+            
+            // Fade out near surface
+            const distanceToSurface = waterSurfaceY - bubble.position.y;
+            if (distanceToSurface < 0.3) {
+                bubble.material.opacity = Math.max(0, distanceToSurface / 0.3) * 0.4;
+            }
+            
+            // Remove bubble if it reaches surface or expires
+            if (bubble.position.y >= waterSurfaceY || userData.lifeTime >= userData.maxLifeTime) {
+                bubble.visible = false;
+                this.bubblePool.push(bubble);
+                this.bubbles.splice(i, 1);
+            }
+        }
+    }
+
     switchObject(type) {
         if (this.currentObject) {
             this.scene.remove(this.currentObject);
@@ -595,6 +741,15 @@ class ArchimedesSimulation {
             this.updatePhysics();
         });
 
+        const bubbleIntensitySlider = document.getElementById('bubbleIntensity');
+        if (bubbleIntensitySlider) {
+            bubbleIntensitySlider.addEventListener('input', (e) => {
+                this.bubbleSpawnRate = parseFloat(e.target.value);
+                document.getElementById('bubbleIntensityValue').textContent = this.bubbleSpawnRate.toFixed(2);
+            });
+        }
+
+
         document.getElementById('resetBtn').addEventListener('click', () => {
             this.waterLevel = 0.5;
             this.objectDensity = 0.7;
@@ -610,6 +765,13 @@ class ArchimedesSimulation {
 
             this.water.position.y = -2.25;
             this.updatePhysics();
+
+            this.bubbleSpawnRate = 0.1;
+            if (bubbleIntensitySlider) {
+                bubbleIntensitySlider.value = 0.1;
+                document.getElementById('bubbleIntensityValue').textContent = '0.10';
+            }
+
         });
     }
 
@@ -621,6 +783,10 @@ class ArchimedesSimulation {
         this.controls.update();
 
         this.animateWater(time);
+
+        this.spawnBubblesFromObject();
+        this.updateBubbles(time);
+
 
         this.updatePhysics();
 
