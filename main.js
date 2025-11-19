@@ -41,7 +41,7 @@ class ArchimedesSimulation {
         this.bubbles = [];
         this.bubblePool = [];
         this.maxBubbles = 50;
-        this.bubbleSpawnRate = 0.9; 
+        this.bubbleSpawnRate = 99; 
 
         // Day/Night mode
         this.isNightMode = false;
@@ -61,6 +61,10 @@ class ArchimedesSimulation {
             hemisphereTop: 0x1a1f3a,
             hemisphereBottom: 0x0a0e27
         };
+
+        // Lamp system
+        this.lamps = [];
+        this.lampLights = [];
 
         this.init();
         this.createRoom();
@@ -203,6 +207,11 @@ class ArchimedesSimulation {
 
         this.createTowel(8, -2.04, 5, 0xff6b9d);
         this.createTowel(-8, -2.04, -5, 0x95e1d3);
+
+        this.createLamp(6, -2.04, -6, 0xffffff);
+        this.createLamp(-6, -2.04, -6, 0xffffff);
+        this.createLamp(6, -2.04, 6, 0xffffff);
+        this.createLamp(-6, -2.04, 6, 0xffffff);
     }
 
     createBeachUmbrella(x, y, z, color) {
@@ -286,6 +295,65 @@ class ArchimedesSimulation {
         this.scene.add(towel);
     }
 
+    createLamp(x, y, z) {
+        const lampGroup = new THREE.Group();
+        
+        const postGeometry = new THREE.CylinderGeometry(0.08, 0.08, 3, 8);
+        const postMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2c2c2c,
+            roughness: 0.4,
+            metalness: 0.6
+        });
+        const post = new THREE.Mesh(postGeometry, postMaterial);
+        post.position.y = 1.5;
+        post.castShadow = true;
+        lampGroup.add(post);
+        
+        const headGeometry = new THREE.CylinderGeometry(0.3, 0.4, 0.3, 8);
+        const headMaterial = new THREE.MeshStandardMaterial({
+            color: 0x1a1a1a,
+            roughness: 0.3,
+            metalness: 0.7
+        });
+        const head = new THREE.Mesh(headGeometry, headMaterial);
+        head.position.y = 3.15;
+        head.castShadow = true;
+        lampGroup.add(head);
+        
+        const bulbGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+        const bulbMaterial = new THREE.MeshStandardMaterial({
+            color: 0xfff4e6,
+            emissive: 0xfff4e6,
+            emissiveIntensity: 0,
+            roughness: 0.2,
+            metalness: 0.1
+        });
+        const bulb = new THREE.Mesh(bulbGeometry, bulbMaterial);
+        bulb.position.y = 3;
+        lampGroup.add(bulb);
+        
+        const lampLight = new THREE.PointLight(0xffd699, 0, 30);
+        lampLight.position.set(0, 3, 0);
+        lampLight.castShadow = true;
+        lampLight.shadow.mapSize.width = 1024;
+        lampLight.shadow.mapSize.height = 1024;
+        lampGroup.add(lampLight);
+        
+        const baseGeometry = new THREE.CylinderGeometry(0.2, 0.25, 0.1, 8);
+        const base = new THREE.Mesh(baseGeometry, postMaterial);
+        base.position.y = 0;
+        base.castShadow = true;
+        lampGroup.add(base);
+        
+        lampGroup.position.set(x, y, z);
+        this.scene.add(lampGroup);
+        
+        this.lamps.push({
+            group: lampGroup,
+            bulb: bulb,
+            light: lampLight
+        });
+    }
     createFormulaBoard() {
         const boardGeometry = new THREE.BoxGeometry(5, 4, 0.2);
         const boardMaterial = new THREE.MeshStandardMaterial({
@@ -508,7 +576,6 @@ class ArchimedesSimulation {
             step++;
             const progress = step / steps;
             
-            // Interpolate colors
             this.scene.background.lerpColors(startBg, targetBg, progress);
             this.scene.fog.color.lerpColors(startFog, targetFog, progress);
             this.ambientLight.color.lerpColors(startAmbient, targetAmbient, progress);
@@ -518,13 +585,23 @@ class ArchimedesSimulation {
             
             // Adjust light intensity
             if (this.isNightMode) {
-                this.ambientLight.intensity = 0.6 - (progress * 0.3);
-                this.directionalLight.intensity = 0.8 - (progress * 0.5); 
+                this.ambientLight.intensity = 0.6 - (progress * 0.2);
+                this.directionalLight.intensity = 0.8 - (progress * 0.7); 
+                
+                this.lamps.forEach(lamp => {
+                    lamp.light.intensity = progress * 10;
+                    lamp.bulb.material.emissiveIntensity = progress * 10; 
+                });
             } else {
-                this.ambientLight.intensity = 0.3 + (progress * 0.3); 
-                this.directionalLight.intensity = 0.3 + (progress * 0.5); 
-            }
-            
+                this.ambientLight.intensity = 0.2 + (progress * 0.4); 
+                this.directionalLight.intensity = 0.1 + (progress * 0.7); 
+                
+                this.lamps.forEach(lamp => {
+                    lamp.light.intensity = (1 - progress) * 10; 
+                    lamp.bulb.material.emissiveIntensity = (1 - progress) * 10;
+                });
+            }          
+
             if (step < steps) {
                 setTimeout(animate, interval);
             } else {
@@ -533,16 +610,14 @@ class ArchimedesSimulation {
                 if (this.isNightMode) {
                     modeIcon.textContent = '☀️';
                     modeText.textContent = 'Mode Siang';
+                    this.createStars();
                 } else {
                     modeIcon.textContent = '🌙';
                     modeText.textContent = 'Mode Malam';
+                    if (this.stars) {
+                        this.scene.remove(this.stars);
+                    }
                 }
-            }
-
-            if (this.isNightMode) {
-                this.createStars();
-            } else if (this.stars) {
-                this.scene.remove(this.stars);
             }
         };
         
