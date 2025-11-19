@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
+import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 
 class ArchimedesSimulation {
     constructor() {
@@ -13,6 +15,7 @@ class ArchimedesSimulation {
         });
 
         this.loader = new GLTFLoader();
+        this.fontLoader = new FontLoader();
         this.models = {
             pool: null,
             ship: null,
@@ -35,6 +38,9 @@ class ArchimedesSimulation {
         this.targetY = 0;
 
         this.init();
+        this.createRoom();
+        this.createDecorations();
+        this.createFormulaBoard();
         this.loadModels();
         this.setupControls();
         this.animate();
@@ -69,11 +75,313 @@ class ArchimedesSimulation {
         const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x6c8ba6, 0.5);
         this.scene.add(hemisphereLight);
 
-        // const gridHelper = new THREE.GridHelper(20, 20, 0x888888, 0x444444);
-        // gridHelper.position.y = -2;
-        // this.scene.add(gridHelper);
-
         window.addEventListener('resize', () => this.onWindowResize());
+    }
+
+    createRoom() {
+        const floorShape = new THREE.Shape();
+
+        floorShape.moveTo(-15, -15);
+        floorShape.lineTo(15, -15);
+        floorShape.lineTo(15, 15);
+        floorShape.lineTo(-15, 15);
+        floorShape.lineTo(-15, -15);
+
+        const poolWidth = 19.5;
+        const poolDepth = 14;
+        const holePath = new THREE.Path();
+        holePath.moveTo(-poolWidth / 2, -poolDepth / 2);
+        holePath.lineTo(poolWidth / 2, -poolDepth / 2);
+        holePath.lineTo(poolWidth / 2, poolDepth / 2);
+        holePath.lineTo(-poolWidth / 2, poolDepth / 2);
+        holePath.lineTo(-poolWidth / 2, -poolDepth / 2);
+        floorShape.holes.push(holePath);
+
+        const floorGeometry = new THREE.ShapeGeometry(floorShape);
+        const floorTexture = this.createTileTexture('#f5f5f5', '#e0e0e0');
+        const floorMaterial = new THREE.MeshStandardMaterial({
+            map: floorTexture,
+            roughness: 0.8,
+            metalness: 0.2,
+            side: THREE.DoubleSide
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -2.05;
+        floor.receiveShadow = true;
+        this.scene.add(floor);
+    }
+
+    createTileTexture(color1, color2) {
+        const size = 512;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        const tileSize = size / 8;
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                ctx.fillStyle = (i + j) % 2 === 0 ? color1 : color2;
+                ctx.fillRect(i * tileSize, j * tileSize, tileSize, tileSize);
+            }
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(4, 4);
+        return texture;
+    }
+
+    createDecorations() {
+        const ballGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+        const ballMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff6b6b,
+            roughness: 0.3,
+            metalness: 0.2
+        });
+        const ball1 = new THREE.Mesh(ballGeometry, ballMaterial);
+        ball1.position.set(8, -1.53, 3);
+        ball1.castShadow = true;
+        ball1.receiveShadow = true;
+        this.scene.add(ball1);
+
+        const ball2Material = new THREE.MeshStandardMaterial({
+            color: 0x4ecdc4,
+            roughness: 0.3,
+            metalness: 0.2
+        });
+        const ball2 = new THREE.Mesh(ballGeometry, ball2Material);
+        ball2.position.set(-8, -1.53, -4);
+        ball2.castShadow = true;
+        ball2.receiveShadow = true;
+        this.scene.add(ball2);
+
+        this.createBeachUmbrella(9, -2.04, -3, 0xffd93d);
+        this.createBeachUmbrella(-9, -2.04, 4, 0xff6bcb);
+
+        this.createBeachChair(8.5, -2.04, -2.5, Math.PI / 4);
+        this.createBeachChair(-8.5, -2.04, 4.5, -Math.PI / 4);
+
+        const ringGeometry = new THREE.TorusGeometry(0.6, 0.2, 16, 32);
+        const ringMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffeb3b,
+            roughness: 0.4,
+            metalness: 0.1
+        });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.position.set(-2, -1.9, 4);
+        ring.rotation.x = Math.PI / 2;
+        ring.castShadow = true;
+        this.scene.add(ring);
+
+        this.createTowel(8, -2.04, 5, 0xff6b9d);
+        this.createTowel(-8, -2.04, -5, 0x95e1d3);
+    }
+
+    createBeachUmbrella(x, y, z, color) {
+        const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 2.5, 8);
+        const poleMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8b4513,
+            roughness: 0.7
+        });
+        const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+        pole.position.set(x, y + 1.25, z);
+        pole.castShadow = true;
+        this.scene.add(pole);
+
+        const umbrellaGeometry = new THREE.ConeGeometry(1.5, 1, 8);
+        const umbrellaMaterial = new THREE.MeshStandardMaterial({
+            color: color,
+            roughness: 0.5,
+            side: THREE.DoubleSide
+        });
+        const umbrella = new THREE.Mesh(umbrellaGeometry, umbrellaMaterial);
+        umbrella.position.set(x, y + 3, z);
+        umbrella.castShadow = true;
+        this.scene.add(umbrella);
+    }
+
+    createBeachChair(x, y, z, rotation) {
+        const group = new THREE.Group();
+
+        const seatGeometry = new THREE.BoxGeometry(1, 0.1, 1);
+        const seatMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.6
+        });
+        const seat = new THREE.Mesh(seatGeometry, seatMaterial);
+        seat.position.y = 0.3;
+        seat.castShadow = true;
+        group.add(seat);
+
+        const backGeometry = new THREE.BoxGeometry(1, 0.8, 0.1);
+        const back = new THREE.Mesh(backGeometry, seatMaterial);
+        back.position.set(0, 0.7, -0.45);
+        back.rotation.x = -0.2;
+        back.castShadow = true;
+        group.add(back);
+
+        const legGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.3, 8);
+        const legMaterial = new THREE.MeshStandardMaterial({
+            color: 0xc0c0c0,
+            roughness: 0.3,
+            metalness: 0.5
+        });
+
+        const positions = [
+            [-0.4, 0.15, -0.4],
+            [0.4, 0.15, -0.4],
+            [-0.4, 0.15, 0.4],
+            [0.4, 0.15, 0.4]
+        ];
+
+        positions.forEach(pos => {
+            const leg = new THREE.Mesh(legGeometry, legMaterial);
+            leg.position.set(...pos);
+            leg.castShadow = true;
+            group.add(leg);
+        });
+
+        group.position.set(x, y, z);
+        group.rotation.y = rotation;
+        this.scene.add(group);
+    }
+
+    createTowel(x, y, z, color) {
+        const towelGeometry = new THREE.BoxGeometry(1.5, 0.05, 1);
+        const towelMaterial = new THREE.MeshStandardMaterial({
+            color: color,
+            roughness: 0.8
+        });
+        const towel = new THREE.Mesh(towelGeometry, towelMaterial);
+        towel.position.set(x, y, z);
+        towel.receiveShadow = true;
+        this.scene.add(towel);
+    }
+
+    createFormulaBoard() {
+        const boardGeometry = new THREE.BoxGeometry(5, 4, 0.2);
+        const boardMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2c3e50,
+            roughness: 0.7
+        });
+        const board = new THREE.Mesh(boardGeometry, boardMaterial);
+        board.position.set(0, 2, -8);
+        board.rotation.y = 0;
+        board.castShadow = true;
+        board.receiveShadow = true;
+        this.scene.add(board);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+        canvas.height = 1024;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#ecf0f1';
+        ctx.font = 'bold 80px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('RUMUS FISIKA', canvas.width / 2, 120);
+
+        ctx.strokeStyle = '#95a5a6';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(150, 180);
+        ctx.lineTo(874, 180);
+        ctx.stroke();
+
+        ctx.font = 'bold 60px Arial';
+        ctx.fillStyle = '#3498db';
+        ctx.fillText('Prinsip Archimedes', canvas.width / 2, 280);
+
+        ctx.font = 'bold 70px Arial';
+        ctx.fillStyle = '#ecf0f1';
+        ctx.fillText('F', canvas.width / 2 - 200, 380);
+        ctx.font = '45px Arial';
+        ctx.fillText('b', canvas.width / 2 - 160, 400);
+
+        ctx.font = 'bold 70px Arial';
+        ctx.fillText('= ρ × V × g', canvas.width / 2 + 20, 380);
+
+        ctx.font = 'bold 60px Arial';
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillText('Gaya Gravitasi', canvas.width / 2, 520);
+
+        ctx.font = 'bold 70px Arial';
+        ctx.fillStyle = '#ecf0f1';
+        ctx.fillText('F', canvas.width / 2 - 140, 620);
+        ctx.font = '45px Arial';
+        ctx.fillText('g', canvas.width / 2 - 100, 640);
+
+        ctx.font = 'bold 70px Arial';
+        ctx.fillText('= m × g', canvas.width / 2 + 40, 620);
+
+        ctx.font = 'bold 60px Arial';
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillText('Resultan Gaya', canvas.width / 2, 760);
+
+        ctx.font = 'bold 70px Arial';
+        ctx.fillStyle = '#ecf0f1';
+        ctx.fillText('F', canvas.width / 2 - 180, 860);
+        ctx.font = '45px Arial';
+        ctx.fillText('net', canvas.width / 2 - 135, 880);
+
+        ctx.font = 'bold 70px Arial';
+        ctx.fillText('=', canvas.width / 2 - 60, 860);
+
+        ctx.fillText('F', canvas.width / 2 + 10, 860);
+        ctx.font = '45px Arial';
+        ctx.fillText('b', canvas.width / 2 + 50, 880);
+
+        ctx.font = 'bold 70px Arial';
+        ctx.fillText('- F', canvas.width / 2 + 100, 860);
+        ctx.font = '45px Arial';
+        ctx.fillText('g', canvas.width / 2 + 150, 880);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+
+        const textPlaneGeometry = new THREE.PlaneGeometry(4.8, 3.8);
+        const textPlaneMaterial = new THREE.MeshBasicMaterial({
+            map: texture,
+            side: THREE.DoubleSide
+        });
+        const textPlane = new THREE.Mesh(textPlaneGeometry, textPlaneMaterial);
+        textPlane.position.set(0, 2, -7.89);
+        textPlane.rotation.y = 0;
+        this.scene.add(textPlane);
+
+        const frameGeometry = new THREE.BoxGeometry(5.1, 4.1, 0.1);
+        const frameMaterial = new THREE.MeshStandardMaterial({
+            color: 0xd4af37,
+            roughness: 0.3,
+            metalness: 0.8
+        });
+        const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+        frame.position.set(0, 2, -7.95);
+        frame.rotation.y = 0;
+        this.scene.add(frame);
+
+        const poleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 4, 16);
+        const poleMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8b4513,
+            roughness: 0.6,
+            metalness: 0.2
+        });
+        const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+        pole.position.set(0, 0, -8);
+        pole.castShadow = true;
+        this.scene.add(pole);
+
+        const baseGeometry = new THREE.CylinderGeometry(0.3, 0.4, 0.2, 16);
+        const base = new THREE.Mesh(baseGeometry, poleMaterial);
+        base.position.set(0, -2.04, -8);
+        base.castShadow = true;
+        this.scene.add(base);
     }
 
     async loadModels() {
@@ -138,6 +446,7 @@ class ArchimedesSimulation {
         this.water = new THREE.Mesh(waterGeometry, waterMaterial);
         this.water.rotation.x = -Math.PI / 2;
         this.water.position.y = -2.25;
+        // console.log("dari create", this.water.position.y);
         this.water.receiveShadow = true;
 
         this.scene.add(this.water);
@@ -273,7 +582,9 @@ class ArchimedesSimulation {
         const waterLevelSlider = document.getElementById('waterLevel');
         waterLevelSlider.addEventListener('input', (e) => {
             this.waterLevel = parseFloat(e.target.value);
-            this.water.position.y = (this.waterLevel - 0.5) * 4;
+            // console.log("dari slider before", this.waterLevel);
+            this.water.position.y = (this.waterLevel - 1.0625) * 4;
+            // console.log("dari slider", this.water.position.y);
             document.getElementById('waterLevelValue').textContent = this.waterLevel.toFixed(2);
         });
 
